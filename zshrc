@@ -14,10 +14,48 @@ prompt walters
 
 autoload -U colors && colors
 zmodload zsh/net/tcp
-#'\ue0b0'
-#
 PROMPT="%{$fg_bold[green]%}%#%{$fg_bold[cyan]%}%1~%{$fg_bold[magenta]%}❯%{$reset_color%}%"
-RPROMPT="%{$fg_bold[green]%}%~ %{$fg[magenta]%}- %{$fg_bold[cyan]%}%n%{$fg_bold[magenta]%}:%{$fg[cyan]%}%m%{$fg[magenta]%}:%{$fg[blue]%}%l %{$fg[magenta]%}- %{$fg_bold[white]%}%T %{$fg[magenta]%}- %{$fg_bold[yellow]%}[%?]%{$reset_color%}"
+RPROMPT="%{$fg_bold[green]%}%~ %{$fg[magenta]%}- %{$fg_bold[cyan]%}%n%{$fg_bold[magenta]%}:%{$fg[cyan]%}%m%{$fg[magenta]%}:%{$fg[blue]%}%l %{$fg[magenta]%}- %{$fg_bold[white]%}%T %{$fg[magenta]%}- %{$fg_bold[yellow]%}[Ø]%{$reset_color%}"
+
+preexec(){
+	typeset -ig _preexec=$(date '+%s%N' | cut -b1-13)
+}
+
+precmd(){ 
+	typeset -ig _postexec=$(date '+%s%N' | cut -b1-13)
+	_exec_time="$(( $_postexec - $_preexec ))"
+	_millis=${_exec_time[-3, -1]}
+	
+	if [[ $_exec_time -ge 1000 ]]; then
+		_exec_time=${_exec_time[1, -4]}
+		_hours=$(( $_exec_time / 3600 ))
+		_exec_time=$(( $_exec_time % 3600 ))
+		_minutes=$(( $_exec_time / 60 ))
+		_exec_time=$(( $_exec_time % 60 ))
+		_seconds=$_exec_time
+	else
+		_hours=0
+		_minutes=0
+		_seconds=0
+	fi
+	
+	_rprompt_time=""
+	
+	if [[ $_hours -ge 1 ]]; then
+		_minutes=${(l:2::0:)_minutes}
+		_seconds=${(l:2::0:)_seconds}
+		_rprompt_time="$_hours:$_minutes:"
+	elif [[ $_minutes -ge 1 ]]; then
+		_seconds=${(l:2::0:)_seconds}
+		_rprompt_time="$_minutes:"
+	fi
+
+	_millis=${(l:3::0:)_millis}
+
+	_rprompt_time="$_rprompt_time$_seconds.$_millis"
+
+	RPROMPT="%{$fg_bold[green]%}%~ %{$fg[magenta]%}- %{$fg_bold[cyan]%}%n%{$fg_bold[magenta]%}:%{$fg[cyan]%}%m%{$fg[magenta]%}:%{$fg[blue]%}%l %{$fg[magenta]%}- %{$fg_bold[white]%}%T %{$fg[magenta]%}- %{$fg_bold[yellow]%}[$_rprompt_time]%{$reset_color%}"
+}
 
 ################################################################################
 ################################################################################
@@ -48,6 +86,8 @@ zstyle ':completion:*' ignore-parents parent pwd
 
 zstyle :compinstall filename '/home/keiwop/.zshrc'
 
+source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
 ################################################################################
 ################################################################################
 typeset -U path
@@ -56,7 +96,7 @@ _0="/_"
 
 path=($path /usr/share/java/javacc-5.0/bin)
 
-path=($path /bin $_0/bin $_0/src/scripts $_0/src/python $_0/dev/keyboard/bin $_0/src/python/nameless_term )
+path=($path /bin $_0/bin $_0/src/scripts $_0/src/python $_0/dev/keyboard/bin)
 ld_library_path=($ld_library_path $_0/lib $_0/dev/keyboard/bin/lib)
 
 cdpath=($_0)
@@ -109,10 +149,15 @@ alias -g valgringo="valgrind -v --leak-check=full --show-reachable=yes"
 alias -g lj="journalctl -b --user | tail -20"
 alias -g lm="find . -cmin -1"
 
-alias -g create_efistub="sudo efibootmgr -d /dev/sda -p 1 -c -L \"arch_efi_test\" -l /EFI/arch/vmlinuz-linux -u \"root=/dev/sda3 rw rootflags=noatime,discard elevator=nop initrd=/EFI/arch/initramfs-linux.img\""
+alias -g create_efistub="sudo efibootmgr -d /dev/sda -p 1 -c -L \"arch_efi\" -l /arch/vmlinuz-linux -u \"root=/dev/sda2 rw rootflags=noatime,discard elevator=noop initrd=/arch/initramfs-linux.img\""
 
 alias -g plz='eval "sudo $(fc -ln -1)"'
 alias -g pingg="ping 8.8.8.8"
+
+alias -g fac_mtu="sudo ip link set wlp3s0 mtu 1000; sudo ip link set tap0 mtu 1000"
+
+alias -g watch_disk='watch -n 1 "sudo hdparm -C /dev/sd{a..f}"'
+alias -g ssh_router="ssh -oKexAlgorithms=+diffie-hellman-group1-sha1 root@192.168.1.253"
 
 ################################################################################
 ################################################################################
@@ -310,6 +355,79 @@ set_a_eabi(){
 	 export LD_LIBRARY_PATH="$clib_a_eabi:$LD_LIBRARY_PATH"
 }
 
+
+set_monitor_mode(){
+	sudo systemctl stop NetworkManager.service
+	sudo systemctl stop wpa_supplicant.service 
+	sudo ip link set wlp3s0 down
+	sudo iwconfig wlp3s0 mode Monitor
+	sudo airmon-ng start wlp3s0 9
+}
+
+
+unset_monitor_mode(){
+	sudo systemctl restart wpa_supplicant.service 
+	sudo systemctl restart NetworkManager.service
+}
+
+
+alias scan_networks="sudo airodump-ng wlp3s0"
+#alias wpa_handshake="sudo airodump-ng wlp3s0 -c 11 -w psk --bssid 02:1A:11:FB:0C:D6"
+#alias wpa_aireplay="sudo aireplay-ng wlp3s0 -0 42 -a 02:1A:11:FB:0C:D6 -c DC:85:DE:07:BB:48"
+#alias wpa_aircrack="sudo aircrack-ng -w dict -b 02:1A:11:FB:0C:D6 psk*.cap"
+
+wpa_scan_handshake(){
+	if [[ $1 -ge 1 ]]; then
+		export wpa_channel=$1
+	fi
+	
+	if [[ -n $2 ]]; then
+		export wpa_ssid=$2
+	fi
+	
+	sudo airodump-ng wlp3s0 -c $wpa_channel -w psk --bssid $wpa_ssid
+}
+
+wpa_disconnect_client(){
+	if [[ -n $1 ]]; then
+		export wpa_client_ssid=$1
+	fi
+	
+	sudo aireplay-ng wlp3s0 -0 42 -a $wpa_ssid -c $wpa_client_ssid
+cat >> wpa_log << EOF
+ssid: $wpa_ssid
+client: $wpa_client_ssid
+EOF
+}
+
+wpa_crack_passwd(){
+	if [[ -n $1 ]]; then
+		export wpa_dict_list=$1
+	fi
+	
+	sudo aircrack-ng -w $wpa_dict_list -b $wpa_ssid psk*.cap
+}
+
+
+generate_dot(){
+	for arg in $@
+	do
+		echo $arg
+		dot -Tpng $arg -o $arg.png
+	done
+}
+
+generate_neato(){
+	neato -Tpng $1 -o $1.png
+}
+
+generate_twopi(){
+	twopi -Tpng $1 -o $1.png
+}
+
+generate_fdp(){
+	fdp -Tpng $1 -o $1.png
+}
 
 ################################################################################
 ################################################################################
