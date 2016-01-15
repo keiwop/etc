@@ -17,6 +17,8 @@ zmodload zsh/net/tcp
 PROMPT="%{$fg_bold[green]%}%#%{$fg_bold[cyan]%}%1~%{$fg_bold[magenta]%}❯%{$reset_color%}%"
 RPROMPT="%{$fg_bold[green]%}%~ %{$fg[magenta]%}- %{$fg_bold[cyan]%}%n%{$fg_bold[magenta]%}:%{$fg[cyan]%}%m%{$fg[magenta]%}:%{$fg[blue]%}%l %{$fg[magenta]%}- %{$fg_bold[white]%}%T %{$fg[magenta]%}- %{$fg_bold[yellow]%}[Ø]%{$reset_color%}"
 
+typeset -ig _preexec=$(date '+%s%N' | cut -b1-13)
+
 preexec(){
 	typeset -ig _preexec=$(date '+%s%N' | cut -b1-13)
 }
