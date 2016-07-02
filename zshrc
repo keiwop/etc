@@ -140,12 +140,25 @@ typeset -ig _postexec=$(date '+%s%N' | cut -b1-13)
 
 #All the directories in /_ are accessible with cd from anywhere
 cdpath=(/_)
-
+#Path for good stuff
 path=($path /_/bin /_/src/scripts /_/src/python /_/src/kbd/bin)
-path=($path /usr/share/java/javacc-5.0/bin)
+#Path for things I don't like to use
+path=($path \
+	/usr/share/java/javacc-5.0/bin \
+	/_/opt \
+	/_/opt/ti/mspgcc/bin \
+	/_/opt/sicstus4.3.2/bin \
+	/_/opt/netlogo-5.3.1-64)
 
-ld_library_path=($ld_library_path /_/lib /_/src/kbd/bin/lib)
-CLASSPATH=($CLASSPATH /usr/share/java/junit.jar /usr/share/java/javacc-5.0/bin/lib/javacc.jar)
+ld_library_path=($ld_library_path \
+	/_/lib \
+	/_/src/kbd/bin/lib \
+	/_/opt/sicstus-4.3.2/lib)
+CLASSPATH=($CLASSPATH \
+	/usr/share/java/junit.jar \
+	/usr/share/java/javacc-5.0/bin/lib/javacc.jar \
+	/_/opt/sicstus4.3.2/lib/sicstus-4.3.2/bin/*.jar \
+	/_/opt/netlogo-5.3.1-64/runtime/lib/*.jar)
 
 #Remove the duplicates from the path
 typeset -U path
@@ -173,6 +186,9 @@ alias llk="ll **/*(D.Lm+42)" 	#Same but including all the hidden files
 alias lj="journalctl -b --user | tail -20"
 #Show the ports used on the machine
 alias lp="sudo netstat -plnt"
+
+#I'm lazy
+alias cdf='cd /_/src/fac/M1'
 
 #Use a global alias when you want to use your alias in a command
 #eg: "cd ..."
@@ -231,11 +247,23 @@ alias video_from_jpg="ffmpeg -f image2 -start_number 1982 -r 7 -i DSC0%d.JPG -y 
 alias mount_arch_desktop="sudo mount -t nfs 192.168.1.42:/ /_/nfs/arch_desktop"
 #¡Hola!
 alias valgringo="valgrind -v --leak-check=full --show-reachable=yes"
+
 #Network stuff
 alias pingg="ping 8.8.8.8"
 alias ssh_router="ssh -oKexAlgorithms=+diffie-hellman-group1-sha1 ${router_user}@${router_addr}"
 alias fac_mtu="sudo ip link set wlp3s0 mtu 1000; sudo ip link set tap0 mtu 1000"
 alias get_file="wget --user=${seedbox_user} --password=${seedbox_passwd} --no-check-certificate -r --reject='index.html*' -nH -np --cut-dirs=2"
+
+#Git stuff
+alias pushm="git push origin HEAD:master"
+alias pullm="git pull origin master"
+
+#Replace the js used by the the current instance of Gnome
+alias -g use_custom_gjs="GNOME_SHELL_JS=/_/dev/gnome/gnome_shell gnome-shell --replace"
+
+#Touch recursively the files of the current dir
+alias -g touch_all="find . -exec touch {} \;"
+
 
 ################################################################################
 #Functions
@@ -297,7 +325,6 @@ mkdir_cd(){
 	for ((i = 0; i < $count; ++i)); do
 		cd ..
 	done
-	
 }
 
 
@@ -472,13 +499,13 @@ proxy_on(){
 
 #Print the hex value from a int passed as parameter
 hexof(){
-    if [[ -n $1 ]]; then
-        printf "%x\n" $1
-    fi
+	if [[ -n $1 ]]; then
+		printf "%x\n" $1
+	fi
 }
 
 #The aircrack serie of functions begins
-#I'll put them all in a script somewhere, someday, somehow
+#TODO I'll put them all in a script somewhere, someday, somehow
 set_monitor_mode(){
 	sudo systemctl stop NetworkManager.service
 	sudo systemctl stop wpa_supplicant.service 
@@ -687,15 +714,32 @@ tar_decompress(){
 }
 
 
+#XXX Warning, use at your own risk
+#If I write the same file over and over (a builroot boot img for example), at a 
+#certain point the sdcard will just stop writing new data
+#So I write random data to the sdcard before writing the file passed in argument
+ddd(){
+	if [[ -e $2 ]] && [[ -b $1 ]]; then
+		sudo dd if=/dev/urandom of=$1 count=16384
+		sync
+		sudo dd if=$2 of=$1 bs=4K
+		sync
+	fi
+}
+
+
 
 ################################################################################
 #Hooks
 ################################################################################
 
+#_preexec stores the time before a command is executed
 preexec(){
 	_preexec=$(date '+%s%N' | cut -b1-13)
 }
 
+#_postexec stores the time after a command is executed
+#The two are used to calculate the duration of a command and print it in the RPROMPT
 precmd(){ 
 	_postexec=$(date '+%s%N' | cut -b1-13)
 	_exec_time="$(( $_postexec - $_preexec ))"
@@ -730,31 +774,36 @@ zle -N down-line-or-beginning-search
 [[ -n "${key[Down]}" ]] && bindkey "${key[Down]}" down-line-or-beginning-search
 
 #You can find the keys to use with the command "showkey -a"
+#Applying default keys of some laptops
+bindkey "^[[H" beginning-of-line 							#Home (Laptop)
+bindkey "^[[F" end-of-line 									#End (Laptop)
+bindkey "^[[5~" beginning-of-buffer-or-history 				#PageUp (Laptop)
+bindkey "^[[6~" end-of-buffer-or-history 					#PageDown (Laptop)
 
 #Move the cursor to the start of the previous word
-bindkey "^[[1;5D" vi-backward-blank-word 	#Ctrl + Left
+bindkey "^[[1;5D" vi-backward-blank-word 					#Ctrl + Left
 #Move the cursor to the start of the next word
-bindkey "^[[1;5C" vi-forward-blank-word 	#Ctrl + Right
+bindkey "^[[1;5C" vi-forward-blank-word 					#Ctrl + Right
 
 #Deletes the word before the cursor
-bindkey	"^[[1;6D" backward-delete-word 		#Ctrl + Shift + Left 
+bindkey	"^[[1;6D" backward-delete-word 						#Ctrl + Shift + Left 
 #Deletes the word after the cursor
-bindkey	"^[[1;6C" delete-word 				#Ctrl + Shift + Right
+bindkey	"^[[1;6C" delete-word 								#Ctrl + Shift + Right
 
 #Swap the case of the char under the cursor
-bindkey "^[[1;2A" vi-swap-case 				#Shift + Up
+bindkey "^[[1;2A" vi-swap-case 								#Shift + Up
 #Swap the case of a selection
 #Press once then a vi movement to swap selected text or press twice and swap the line
-bindkey "^[[1;2B" vi-oper-swap-case 		#Shift + Down
+bindkey "^[[1;2B" vi-oper-swap-case 						#Shift + Down
 #Move the word under the cursor to the left
-bindkey "^[[1;2D" transpose-words 			#Shift + Left
+bindkey "^[[1;2D" transpose-words 							#Shift + Left
 #Haven't found a way to move a word to the right, so it's useful for vi-oper-swap-case
-bindkey "^[[1;2C" end-of-line 				#Shift + Right
+bindkey "^[[1;2C" end-of-line 								#Shift + Right
 
 #Undo the last action
-bindkey "^[[1;2P" undo 						#Shift + F1
-#Redo the last action undone
-bindkey "^[[1;2Q" redo 						#Shift + F2
+bindkey "^[[1;2P" undo 										#Shift + F1
+#Redo the last undone action
+bindkey "^[[1;2Q" redo 										#Shift + F2
 #You can also launch a command when using a shortcut
 bindkey -s "^[[1;2R" "watch -n 1 'dmesg | tail -n 16'\n" 	#Shift + F3
 bindkey -s "^[[15;2~" "yaourt -Syu\n" 						#Shift + F5
@@ -776,7 +825,9 @@ tabs 4
 ################################################################################
 
 #Enable fish-like syntax highlighting
-source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+#source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+#Git version
+source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
 
 
