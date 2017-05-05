@@ -14,8 +14,9 @@ autoload -Uz promptinit
 promptinit
 prompt suse
 autoload -U colors && colors
-PROMPT="%{$fg_bold[green]%}%#%{$fg_bold[cyan]%}%1~%{$fg_bold[magenta]%}❯%{$reset_color%}%"
-RPROMPT="%{$fg_bold[green]%}%~ %{$fg[magenta]%}- %{$fg_bold[cyan]%}%n%{$fg_bold[magenta]%}:%{$fg[cyan]%}%m%{$fg[magenta]%}:%{$fg[blue]%}%l %{$fg[magenta]%}- %{$fg_bold[white]%}%T %{$fg[magenta]%}- %{$fg_bold[yellow]%}[Ø]%{$reset_color%}"
+prompt_user_color=green
+PROMPT="%{$fg_bold[$prompt_user_color]%}%#%{$fg_bold[cyan]%}%1~%{$fg_bold[magenta]%}>%{$reset_color%}%"
+RPROMPT="%{$fg_bold[$prompt_user_color]%}%~ %{$fg[magenta]%}- %{$fg_bold[cyan]%}%n%{$fg_bold[magenta]%}:%{$fg[cyan]%}%m%{$fg[magenta]%}:%{$fg[blue]%}%l %{$fg[magenta]%}- %{$fg_bold[white]%}%T %{$fg[magenta]%}- %{$fg_bold[yellow]%}[Ø]%{$reset_color%}"
 
 
 
@@ -47,6 +48,8 @@ setopt MAIL_WARNING
 #Exit a shell without any care for the suspended or background jobs
 setopt NO_CHECK_JOBS
 setopt NOHUP
+#Silent the shell in case of match not found
+setopt NULL_GLOB
 #With pattern search, sort the filenames numerically
 setopt NUMERIC_GLOB_SORT
 #Print the exit value of a program if it's non-zero
@@ -55,6 +58,8 @@ setopt PRINT_EXIT_VALUE
 setopt RC_EXPAND_PARAM 	#Doesn't seem to work
 #Enable the line editor
 setopt ZLE
+#Automaticaly add the dirs visited with "cd" to the directory stack
+setopt AUTOPUSHD PUSHDMINUS PUSHDSILENT PUSHD_IGNORE_DUPS
 
 
 
@@ -70,7 +75,7 @@ zstyle ':completion:*' menu select=1
 #Force rehash for completing newly installed programs
 zstyle ':completion:*' rehash true
 #Don't show the directories of $cdpath in the completion of cd
-#zstyle ':completion:*:cd:*' tag-order local-directories path-directories
+zstyle ':completion:*:*:cd:*' tag-order local-directories path-directories named-directories directory-stack
 #Order of types of completion to try, expand the aliases first
 zstyle ':completion:*' completer _expand_alias _complete _correct _approximate _expand
 #Use the same colours as ls
@@ -119,10 +124,17 @@ zstyle ':completion:*:manuals' separate-sections true
 #Variables
 ################################################################################
 
-export EDITOR=vi
+# Use Kate if a GUI is available
+if [[ -n $DISPLAY ]]; then
+	export EDITOR=kate
+else
+	export EDITOR=vi
+fi
+
 export MANWIDTH=${MANWIDTH:-80}
-#Only show the last 12 visited dirs (type "cd -<TAB>")
-export DIRSTACKSIZE=12
+#Only show the last 10 visited dirs (type "cd -<TAB>")
+export DIRSTACKSIZE=10
+export DIRSTACKFILE=~/.zdirs
 export HISTFILE=$HOME/.zsh_history
 export HISTSIZE=16777216
 export SAVEHIST=16777216
@@ -132,6 +144,8 @@ export WORDCHARS="*?_-.[]~=/&;!#$%^(){}<>"
 typeset -ig _preexec=$(date '+%s%N' | cut -b1-13)
 typeset -ig _postexec=$(date '+%s%N' | cut -b1-13)
 
+# Make swing applications a bit less ugly. Define it in /etc/environment for a global effect
+export _JAVA_OPTIONS="-Dswing.defaultlaf=com.sun.java.swing.plaf.gtk.GTKLookAndFeel -Dswing.crossplatformlaf=com.sun.java.swing.plaf.gtk.GTKLookAndFeel"
 
 
 ################################################################################
@@ -140,29 +154,18 @@ typeset -ig _postexec=$(date '+%s%N' | cut -b1-13)
 
 #All the directories in /_ are accessible with cd from anywhere
 cdpath=(/_)
-#Path for good stuff
-path=($path /_/bin /_/src/scripts /_/src/python /_/src/kbd/bin)
-#Path for things I don't like to use
-path=($path \
-	/usr/share/java/javacc-5.0/bin \
-	/_/opt \
-	/_/opt/ti/mspgcc/bin \
-	/_/opt/sicstus4.3.2/bin \
-	/_/opt/netlogo-5.3.1-64)
 
-ld_library_path=($ld_library_path \
-	/_/lib \
-	/_/src/kbd/bin/lib \
-	/_/opt/sicstus-4.3.2/lib)
-CLASSPATH=($CLASSPATH \
-	/usr/share/java/junit.jar \
-	/usr/share/java/javacc-5.0/bin/lib/javacc.jar \
-	/_/opt/sicstus4.3.2/lib/sicstus-4.3.2/bin/*.jar \
-	/_/opt/netlogo-5.3.1-64/runtime/lib/*.jar)
+path=($path /_/bin /_/src/scripts /_/src/python /_/src/kbd/bin)
+path=($path /opt/intel/bin)
+# path=($path /usr/share/java/javacc-5.0/bin /_/opt/activemq/bin/linux-x86-64)
+
+ld_library_path=($ld_library_path /_/lib /_/src/kbd/bin/lib /opt/intel/lib)
+# LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/craftware/lib
+# CLASSPATH=($CLASSPATH /usr/share/java/junit.jar /usr/share/java/javacc-5.0/bin/lib/javacc.jar)
+# CLASSPATH=$CLASSPATH:/_/opt/wildfly-10.1.0.Final/jboss-modules.jar:/_/opt/ViSiDiA/lib/visidia_api.jar
 
 #Remove the duplicates from the path
 typeset -U path
-
 
 
 ################################################################################
@@ -186,9 +189,6 @@ alias llk="ll **/*(D.Lm+42)" 	#Same but including all the hidden files
 alias lj="journalctl -b --user | tail -20"
 #Show the ports used on the machine
 alias lp="sudo netstat -plnt"
-
-#I'm lazy
-alias cdf='cd /_/src/fac/M1'
 
 #Use a global alias when you want to use your alias in a command
 #eg: "cd ..."
@@ -214,9 +214,9 @@ alias ramdisko="find . | cpio -o -H newc | gzip > ../initramfs_.cpio.gz"
 alias ramdiski="gunzip -c ../initramfs.cpio.gz | cpio -i"
 alias mkimg="mkbootimg --kernel zImage --ramdisk initramfs_.cpio.gz --base 0x40000000 --cmdline 'console=ttyS0,115200 rw init=/init loglevel=4 vmalloc=384M ion_reserve=128M' -o new_block.img"
 
-#TODO Recode chmod and chown as functions
-alias chmod_dir="find /path/to/dir -type d -print0 | xargs -0 chmod 755"
-alias chmod_files="find /path/to/dir -type f -print0 | xargs -0 chmod 644"
+#Replaced by functions
+#alias chmod_dir="find /path/to/dir -type d -print0 | xargs -0 chmod 755"
+#alias chmod_files="find /path/to/dir -type f -print0 | xargs -0 chmod 644"
 
 #There is a function now
 #alias create_efistub="sudo efibootmgr -d /dev/sda -p 1 -c -L 'arch_efi' -l /arch/vmlinuz-linux -u 'root=/dev/sda2 rw rootflags=noatime,discard elevator=noop initrd=/arch/initramfs-linux.img'"
@@ -231,20 +231,25 @@ alias watch_system_log="watch -n 1 'tail -n 16 /var/log/arch_desktop.log'"
 alias watch_nvidia="watch -n 1 'sudo nvidia-smi'"
 alias watch_sensors="watch -n 1 'sudo sensors'"
 alias watch_dmesg="watch -n 1 'dmesg | tail -n 16'"
+alias watch_temp="watch -n 1 cat /sys/class/thermal/thermal_zone*/temp"
 
-#Configure your serial bluetooth adapter
+#Configure a serial bluetooth adapter
 alias bt_set_name="sudo echo 'AT+NAMEkeiwop' >> /dev/ttyUSB0"
 alias bt_set_pin="sudo echo 'AT+PIN0000' >> /dev/ttyUSB0"
 alias bt_set_baud="sudo echo 'AT+BAUD4' >> /dev/ttyUSB0"
 
 #Print the top10 of the most used commands
-alias top10='print -l ${(o)history%% *} | uniq -c | sort -nr | head -n 10'
+alias top10="cat ~/.zsh_history | cut -d ';' -f 2 | cut -d ' ' -f 1 | sort | uniq -c | sort -rn | head -n 10"
+
 #Program a clone of arduino pro micro (A Makefile is now available in your local newspaper)
-alias prog_32u4='avrdude -v -v -v -v -D -P/dev/ttyACM0 -cavr109 -b57600 -patmega32u4 -Uflash:w:firmware:i'
+alias prog_32u4="avrdude -v -v -v -v -D -P/dev/ttyACM0 -cavr109 -b57600 -patmega32u4 -Uflash:w:firmware:i"
+
 #Make a gif, badly
 alias video_from_jpg="ffmpeg -f image2 -start_number 1982 -r 7 -i DSC0%d.JPG -y -r 25 -vcodec mpeg4 test.mp4"
+
 #Just in case autotfs doesn't work
-alias mount_arch_desktop="sudo mount -t nfs 192.168.1.42:/ /_/nfs/arch_desktop"
+alias mount_arch_desktop="sudo mount -t nfs 192.168.1.42:/ /_/nfs/hosts/arch_desktop"
+
 #¡Hola!
 alias valgringo="valgrind -v --leak-check=full --show-reachable=yes"
 
@@ -253,17 +258,51 @@ alias pingg="ping 8.8.8.8"
 alias ssh_router="ssh -oKexAlgorithms=+diffie-hellman-group1-sha1 ${router_user}@${router_addr}"
 alias fac_mtu="sudo ip link set wlp3s0 mtu 1000; sudo ip link set tap0 mtu 1000"
 alias get_file="wget --user=${seedbox_user} --password=${seedbox_passwd} --no-check-certificate -r --reject='index.html*' -nH -np --cut-dirs=2"
+alias redirect_port="sudo iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 80 -j REDIRECT --to-port 5000"
 
-#Git stuff
+#Some git aliases
 alias pushm="git push origin HEAD:master"
 alias pullm="git pull origin master"
+alias git_ssh="git remote set-url origin git@github.com:$(whoami)/project.git"
+alias git_bad_info="git commit --amend --reset-author"
 
 #Replace the js used by the the current instance of Gnome
-alias -g use_custom_gjs="GNOME_SHELL_JS=/_/dev/gnome/gnome_shell gnome-shell --replace"
+alias use_custom_gjs="GNOME_SHELL_JS=/_/dev/gnome/gnome_shell gnome-shell --replace"
 
 #Touch recursively the files of the current dir
-alias -g touch_all="find . -exec touch {} \;"
+alias touch_all="find . -exec touch {} \;"
 
+#Reboot on another efi loader
+alias boot_windows="sudo efibootmgr -n 3; sudo reboot"
+#Logout from Gnome
+alias logout_gnome="DISPLAY=:0 gnome-session-quit --force-logout"
+#Logout from KDE
+alias logout_kde="DISPLAY=:0 qdbus org.kde.ksmserver /KSMServer logout 0 0 0"
+#Kill all the processes of the user
+alias kill_user="pkill -u $(whoami)"
+
+#D-BUS stuff
+alias dbus_services="dbus-send --session --dest=org.freedesktop.DBus --type=method_call --print-reply /org/freedesktop/DBus org.freedesktop.DBus.ListNames"
+alias dbus_services_system="dbus-send --system --dest=org.freedesktop.DBus --type=method_call --print-reply /org/freedesktop/DBus org.freedesktop.DBus.ListNames"
+
+# Fixup old code using progmem for new version of avr-gcc
+alias fix_progmem="sed -i 's/^PROGMEM/const PROGMEM/g' *"
+
+# Check for differences between the hardware clock and the one defined using ntp
+alias check_timesync="date +'%Y-%m-%d %H:%M:%S.%N' && hwclock"
+
+# Free the pagecache, inodes and dentries from the memory
+alias drop_caches="echo '3' | sudo tee >> /proc/sys/vm/drop_caches"
+
+# Reset the terminal after a curses crash
+alias reset_term="stty sane^J"
+
+# Change the state the discrete GPU
+alias gpu_on="sudo tee /proc/acpi/bbswitch <<< ON"
+alias gpu_off="sudo tee /proc/acpi/bbswitch <<< OFF"
+
+# Delete the lock put in place by pacman
+alias unlock_pacman="sudo rm /var/lib/pacman/db.lck"
 
 ################################################################################
 #Functions
@@ -271,7 +310,7 @@ alias -g touch_all="find . -exec touch {} \;"
 
 #Print the duration given a number of seconds + milliseconds
 #Example: 63123 returns 1:03.123
-print_duration(){
+format_duration(){
 	duration=$1
 	millis=${duration[-3, -1]}
 	
@@ -305,6 +344,32 @@ print_duration(){
 	echo -n "$result"
 }
 
+format_size(){
+#	TODO format size in KiB instead of KB
+	size=$1
+	size_formatted=""
+	
+	if [[ $2 = "M" ]]; then
+		size=$(( $size * 1000 ))
+	fi
+	
+	size_GB=$(( $size / 1000000 ))
+	size=$(( $size % 1000000 ))
+	size_MB=$(( $size / 1000 ))
+	size=$(( $size % 1000 ))
+	
+	if [[ $size_GB -gt 0 ]]; then
+		size_formatted="${size_GB}.${size_MB}G"
+	elif [[ $size_MB -gt 0 ]]; then
+		rest=$(( $size / 100 ))
+		size_formatted="${size_MB}.${rest}M"
+	else
+		size_formatted="${size}K"
+	fi
+	
+	printf "$size_formatted"
+}
+
 
 #It isn't possible to be more self-explanatory
 mkdir_cd(){
@@ -325,6 +390,7 @@ mkdir_cd(){
 	for ((i = 0; i < $count; ++i)); do
 		cd ..
 	done
+	
 }
 
 
@@ -367,6 +433,24 @@ set_light_theme(){
 	gsettings set org.gnome.desktop.interface gtk-theme Flat-Plat
 	gsettings set org.gnome.desktop.interface icon-theme Numix-Circle
 	gsettings set org.gnome.gedit.preferences.editor scheme 'solarized-light'
+}
+
+
+#Emulate a bluetooth ps3 controller as a xbox 360 controller
+xboxdrv_ps3(){
+	controllers=($(bluetoothctl <<< "exit" | grep "NEW" | grep "PLAYSTATION(R)3" | cut -d " " -f 4))
+	
+	for controller in $controllers; do
+		echo "Emulating controller $controller as xbox 360 controller"
+		for event_dev in /dev/input/event*; do
+			sudo udevadm info -a --name=$event_dev | grep -i "$controller" > /dev/null
+			if [[ $? -eq 0 ]]; then
+				echo "Found the controller connected via bluetooth: $event_dev"
+				sudo xboxdrv --evdev $event_dev --mimic-xpad
+			fi
+		done
+	done
+
 }
 
 
@@ -499,13 +583,13 @@ proxy_on(){
 
 #Print the hex value from a int passed as parameter
 hexof(){
-	if [[ -n $1 ]]; then
-		printf "%x\n" $1
-	fi
+    if [[ -n $1 ]]; then
+        printf "%x\n" $1
+    fi
 }
 
 #The aircrack serie of functions begins
-#TODO I'll put them all in a script somewhere, someday, somehow
+#I'll put them all in a script somewhere, someday, somehow
 set_monitor_mode(){
 	sudo systemctl stop NetworkManager.service
 	sudo systemctl stop wpa_supplicant.service 
@@ -516,6 +600,8 @@ set_monitor_mode(){
 
 
 unset_monitor_mode(){
+	sudo ip link set wlp3s0 up
+	sudo iwconfig wlp3s0 mode Managed
 	sudo systemctl restart wpa_supplicant.service 
 	sudo systemctl restart NetworkManager.service
 }
@@ -619,10 +705,10 @@ create_efistub(){
 	_efi_disk="/dev/sda"
 	_efi_root="/dev/sda2"
 	_efi_part="1"
-	_efi_kernel="/arch/vmlinuz-linux"
-	_efi_initrd="/arch/initramfs-linux.img"
+	_efi_kernel="/vmlinuz-linux"
+	_efi_initrd="/initramfs-linux.img"
 	_efi_rootflags="noatime,discard"
-	_efi_args="root=${_efi_root} rw rootflags=${_efi_rootflags} elevator=noop initrd=${_efi_initrd}"
+	_efi_args="root=${_efi_root} rw rootflags=${_efi_rootflags} elevator=noop ipv6.disable=1 initrd=${_efi_initrd}"
 
 	if [[ -n $1 ]]; then
 		if [[ $1 == "debug" ]]; then
@@ -694,6 +780,7 @@ tar_compress(){
 	echo "\nOutput file: ${gz_file}"
 }
 
+
 #Decompress the archives passed as args in separate dirs
 tar_decompress(){
 	tar_flags="-xzpvf"
@@ -713,8 +800,7 @@ tar_decompress(){
 	done
 }
 
-
-#XXX Warning, use at your own risk
+# HACK: XXX: Warning, use at your own risk
 #If I write the same file over and over (a builroot boot img for example), at a 
 #certain point the sdcard will just stop writing new data
 #So I write random data to the sdcard before writing the file passed in argument
@@ -727,6 +813,81 @@ ddd(){
 	fi
 }
 
+#Clean up a bit the system
+clean_system(){
+	echo ""
+	df -h /
+	_root_info=($(df / | tail -n 1))
+	_used_bytes_before=${_root_info[3]}
+	
+	echo -e "\nCleaning pacman cache (keeping the last 2 versions)"
+	sudo paccache -rk 2
+	
+	echo -e "\nDeleting old logs"
+	sudo find /var/log/journal -name "system@*.journal" -delete > /dev/null
+	sudo find /var/log/journal -name "user-1000@*.journal" -delete > /dev/null
+	
+	echo -e "\nDeleting coredumps"
+	sudo rm -f /var/lib/systemd/coredump/core.*
+		
+#	echo -e "\nDeleting google-chrome cache"
+#	find ~/.config/google-chrome*/Default/File\ System/0* -delete > /dev/null
+#	find ~/.cache/google-chrome*/Default/Cache -delete > /dev/null
+	
+#	echo -e "\nDeleting files in ~/.cache"
+#	find ~/.cache/thumbnails -name "*.png" -delete > /dev/null
+	
+	echo ""
+	df -h /
+	
+	_root_info=($(df / | tail -n 1))
+	_used_bytes_after=${_root_info[3]}
+	(( _bytes_released = $_used_bytes_before - $_used_bytes_after ))
+	space_released=$(format_size $_bytes_released)
+	echo -e "\nSpace released on the system: $space_released"
+}
+
+
+#Set recursively the permissions of the directory $2
+chmod_dir(){
+	sudo find $2 -type d -print0 | sudo xargs -0 chmod $1
+}
+
+chmod_scripts(){
+	sudo find $1 -type f -name "*.sh" -print0 | sudo xargs -0 chmod 755
+}
+
+#Set recursively the permissions of files from the directory $1 to 644 and 755 for scripts
+chmod_files(){
+	sudo find $2 -type f -print0 | sudo xargs -0 chmod $1
+}
+
+#KDE has fucked up? Repair it! (more to come)
+repair_kde(){
+	echo -e "\nRebuilding KDE cache"
+	mv ~/.config/Trolltech.conf ~/.config/Trolltech.conf.old
+	kbuildsycoca4 --noincremental
+	echo -e "\nRemoving KDE mime types"
+}
+
+#Fetch the dsdt from the computer and decompile it
+get_dsdt(){
+	_acpi_tables=/sys/firmware/acpi/tables
+	mkdir orig decompiled
+	
+	echo "dsdt.aml"
+	sudo cat $_acpi_tables/DSDT > orig/dsdt.aml
+	
+	for ssdt in $_acpi_tables{,/dynamic}/SSDT*; do
+		file_ssdt=$(basename $ssdt:l).aml
+		echo "$file_ssdt"
+		sudo cat $ssdt > orig/$file_ssdt
+	done
+	
+	echo -e "\nDecompiling DSDT"
+	iasl -e orig/ssdt*.aml -d orig/dsdt.aml
+	mv orig/*.dsl decompiled/
+}
 
 
 ################################################################################
@@ -743,11 +904,10 @@ preexec(){
 precmd(){ 
 	_postexec=$(date '+%s%N' | cut -b1-13)
 	_exec_time="$(( $_postexec - $_preexec ))"
-	rprompt_time=$(print_duration $_exec_time)
+	rprompt_time=$(format_duration $_exec_time)
 	
-	RPROMPT="%{$fg_bold[green]%}%~ %{$fg[magenta]%}- %{$fg_bold[cyan]%}%n%{$fg_bold[magenta]%}:%{$fg[cyan]%}%m%{$fg[magenta]%}:%{$fg[blue]%}%l %{$fg[magenta]%}- %{$fg_bold[white]%}%T %{$fg[magenta]%}- %{$fg_bold[yellow]%}[$rprompt_time]%{$reset_color%}"
+	RPROMPT="%{$fg_bold[$prompt_user_color]%}%~ %{$fg[magenta]%}- %{$fg_bold[cyan]%}%n%{$fg_bold[magenta]%}:%{$fg[cyan]%}%m%{$fg[magenta]%}:%{$fg[blue]%}%l %{$fg[magenta]%}- %{$fg_bold[white]%}%T %{$fg[magenta]%}- %{$fg_bold[yellow]%}[$rprompt_time]%{$reset_color%}"
 }
-
 
 
 ################################################################################
@@ -755,60 +915,68 @@ precmd(){
 ################################################################################
 
 #Setup keys which might not be default
-#[[ -n "${key[Up]}"       ]]  && bindkey  "${key[Up]}"       up-line-or-history
-#[[ -n "${key[Down]}"     ]]  && bindkey  "${key[Down]}"     down-line-or-history
-[[ -n "${key[Left]}"     ]]  && bindkey  "${key[Left]}"     backward-char
-[[ -n "${key[Right]}"    ]]  && bindkey  "${key[Right]}"    forward-char
-[[ -n "${key[Home]}"     ]]  && bindkey  "${key[Home]}"     beginning-of-line
-[[ -n "${key[End]}"      ]]  && bindkey  "${key[End]}"      end-of-line
-[[ -n "${key[PageUp]}"   ]]  && bindkey  "${key[PageUp]}"   beginning-of-buffer-or-history
-[[ -n "${key[PageDown]}" ]]  && bindkey  "${key[PageDown]}" end-of-buffer-or-history
-[[ -n "${key[Insert]}"   ]]  && bindkey  "${key[Insert]}"   overwrite-mode
-[[ -n "${key[Delete]}"   ]]  && bindkey  "${key[Delete]}"   delete-char
+# [[ -n "${key[Up]}"       ]]  && bindkey  "${key[Up]}"       up-line-or-history
+# [[ -n "${key[Down]}"     ]]  && bindkey  "${key[Down]}"     down-line-or-history
+# [[ -n "${key[Left]}"     ]]  && bindkey  "${key[Left]}"     backward-char
+# [[ -n "${key[Right]}"    ]]  && bindkey  "${key[Right]}"    forward-char
+# [[ -n "${key[Home]}"     ]]  && bindkey  "${key[Home]}"     beginning-of-line
+# [[ -n "${key[End]}"      ]]  && bindkey  "${key[End]}"      end-of-line
+# [[ -n "${key[PageUp]}"   ]]  && bindkey  "${key[PageUp]}"   beginning-of-buffer-or-history
+# [[ -n "${key[PageDown]}" ]]  && bindkey  "${key[PageDown]}" end-of-buffer-or-history
+# [[ -n "${key[Insert]}"   ]]  && bindkey  "${key[Insert]}"   overwrite-mode
+# [[ -n "${key[Delete]}"   ]]  && bindkey  "${key[Delete]}"   delete-char
+
+
+# NOTE: You can find the keys to use with the command "showkey -a"
 
 #Search the history from the line up to the cursor position when using Up or Down key
 autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
 zle -N up-line-or-beginning-search
 zle -N down-line-or-beginning-search
-[[ -n "${key[Up]}"   ]] && bindkey "${key[Up]}"   up-line-or-beginning-search
-[[ -n "${key[Down]}" ]] && bindkey "${key[Down]}" down-line-or-beginning-search
 
-#You can find the keys to use with the command "showkey -a"
-#Applying default keys of some laptops
-bindkey "^[[H" beginning-of-line 							#Home (Laptop)
-bindkey "^[[F" end-of-line 									#End (Laptop)
-bindkey "^[[5~" beginning-of-buffer-or-history 				#PageUp (Laptop)
-bindkey "^[[6~" end-of-buffer-or-history 					#PageDown (Laptop)
+bindkey "^[[A" up-line-or-beginning-search 		# Up
+bindkey "^[[B" down-line-or-beginning-search 	# Down
+bindkey "^[[C" forward-char 					# Right
+bindkey "^[[D" backward-char 					# Left
+
+bindkey "^[[5~" beginning-of-buffer-or-history 	# Page Up
+bindkey "^[[6~" end-of-buffer-or-history 		# Page Down
+
+bindkey "^[[H" beginning-of-line 				# Home
+bindkey "^[[F" end-of-line 						# End
+
+bindkey "^[[2~" overwrite-mode 					# Insert
+bindkey "^[[3~" delete-char 					# Delete
+
 
 #Move the cursor to the start of the previous word
-bindkey "^[[1;5D" vi-backward-blank-word 					#Ctrl + Left
+bindkey "^[[1;5D" vi-backward-blank-word 		# Ctrl + Left
 #Move the cursor to the start of the next word
-bindkey "^[[1;5C" vi-forward-blank-word 					#Ctrl + Right
+bindkey "^[[1;5C" vi-forward-blank-word 		# Ctrl + Right
 
 #Deletes the word before the cursor
-bindkey	"^[[1;6D" backward-delete-word 						#Ctrl + Shift + Left 
+bindkey	"^[[1;6D" backward-delete-word 			# Ctrl + Shift + Left 
 #Deletes the word after the cursor
-bindkey	"^[[1;6C" delete-word 								#Ctrl + Shift + Right
+bindkey	"^[[1;6C" delete-word 					# Ctrl + Shift + Right
 
 #Swap the case of the char under the cursor
-bindkey "^[[1;2A" vi-swap-case 								#Shift + Up
+bindkey "^[[1;2A" vi-swap-case 					# Shift + Up
 #Swap the case of a selection
 #Press once then a vi movement to swap selected text or press twice and swap the line
-bindkey "^[[1;2B" vi-oper-swap-case 						#Shift + Down
+bindkey "^[[1;2B" vi-oper-swap-case 			# Shift + Down
 #Move the word under the cursor to the left
-bindkey "^[[1;2D" transpose-words 							#Shift + Left
+bindkey "^[[1;2D" transpose-words 				# Shift + Left
 #Haven't found a way to move a word to the right, so it's useful for vi-oper-swap-case
-bindkey "^[[1;2C" end-of-line 								#Shift + Right
+bindkey "^[[1;2C" end-of-line 					# Shift + Right
 
 #Undo the last action
-bindkey "^[[1;2P" undo 										#Shift + F1
-#Redo the last undone action
-bindkey "^[[1;2Q" redo 										#Shift + F2
+bindkey "^[[1;2P" undo 							# Shift + F1
+#Redo the last action undone
+bindkey "^[[1;2Q" redo 							# Shift + F2
 #You can also launch a command when using a shortcut
-bindkey -s "^[[1;2R" "watch -n 1 'dmesg | tail -n 16'\n" 	#Shift + F3
-bindkey -s "^[[15;2~" "yaourt -Syu\n" 						#Shift + F5
-bindkey -s "^[[17;2~" "yaourt -Syua --noconfirm\n" 			#Shift + F6
-
+bindkey -s "^[[1;2R" "watch -n 1 'dmesg | tail -n 16'\n" 	# Shift + F3
+bindkey -s "^[[15;2~" "yaourt -Syu\n" 						# Shift + F5
+bindkey -s "^[[17;2~" "yaourt -Syua --noconfirm\n" 			# Shift + F6
 
 
 ################################################################################
@@ -819,18 +987,11 @@ bindkey -s "^[[17;2~" "yaourt -Syua --noconfirm\n" 			#Shift + F6
 tabs 4
 
 
-
 ################################################################################
 #Plugins
 ################################################################################
 
 #Enable fish-like syntax highlighting
 #source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-#Git version
+#The path changed in the git version
 source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
-
-
-
-
-
