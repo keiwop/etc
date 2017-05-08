@@ -889,22 +889,40 @@ get_dsdt(){
 	mv orig/*.dsl decompiled/
 }
 
+# Set the terminal title (only for screen as of now)
+set_title(){
+	if [[ -n $STY ]]; then
+		echo -e "\033k${1}\033\\"
+	fi
+}
+
+# Init the user directory
+init_user_dir(){
+	mkdir -p $HOME/.screenlogs
+}
 
 ################################################################################
 #Hooks
 ################################################################################
 
-#_preexec stores the time before a command is executed
+# Function called before a command is executed
 preexec(){
+	# Set the running command as the title
+	set_title $(echo $1)
+	
+	# _preexec stores the time before a command is executed
 	_preexec=$(date '+%s%N' | cut -b1-13)
 }
 
-#_postexec stores the time after a command is executed
-#The two are used to calculate the duration of a command and print it in the RPROMPT
 precmd(){ 
+	# _postexec stores the time after a command is executed
+	# The two are used to calculate the duration of a command and print it in the RPROMPT
 	_postexec=$(date '+%s%N' | cut -b1-13)
 	_exec_time="$(( $_postexec - $_preexec ))"
 	rprompt_time=$(format_duration $_exec_time)
+	
+	# When the last command is finished, set the directory name as title
+	set_title $(basename $(pwd))
 	
 	RPROMPT="%{$fg_bold[$prompt_user_color]%}%~ %{$fg[magenta]%}- %{$fg_bold[cyan]%}%n%{$fg_bold[magenta]%}:%{$fg[cyan]%}%m%{$fg[magenta]%}:%{$fg[blue]%}%l %{$fg[magenta]%}- %{$fg_bold[white]%}%T %{$fg[magenta]%}- %{$fg_bold[yellow]%}[$rprompt_time]%{$reset_color%}"
 }

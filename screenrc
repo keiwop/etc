@@ -1,0 +1,54 @@
+# Define some macros for use in the screenrc
+backtick 0 0 0 whoami
+backtick 1 1 0 basename $(pwd)
+backtick 2 1 0 date +%Y%m%d_%H%M%S
+
+# https://www.gnu.org/software/screen/manual/screen.html#String-Escapes
+hardstatus alwayslastline "%{=b wC} %0`@%H %= %-w%{=b Cw} %n %t %{-}%+w %=%-26<%-26= %l %{=b Cw} %c:%s "
+
+# You can get the keycodes using "showkey -a"
+# https://www.gnu.org/software/screen/manual/screen.html#Command-Summary
+# F1 - Jump to the previous window
+bindkey "^[OP" prev
+# F2 - Jump to the next window
+bindkey "^[OQ" next
+# F3 - Create a new window
+bindkey "^[OR" screen
+# F4 - Show windows list
+bindkey "^[OS" windowlist
+# Shift + F4 - Close all the windows and exit
+bindkey "^[[1;2S" quit
+# F5 - Reload the screen configuration
+bindkey "^[[15~" source $HOME/.screenrc
+# F6 - Set monitoring of the window
+bindkey "^[[17~" monitor
+# F12 - Detach the screen
+bindkey "^[[24~" detach
+
+# Allow for 256 colors
+term screen-256color
+
+# Allow terminal scrollback
+termcapinfo xterm* ti@:te@
+
+# Exiting from editors restore the display
+altscreen on
+
+# Don't wait for a timed out display (ie: ssh disconnection)
+nonblock on 
+defnonblock on
+
+# Define the maximum scrollback lines
+defscrollback 9999
+
+# Detach the screen upon hangup
+autodetach on
+
+# Do not show a startup message
+startup_message off
+
+# Record a log of the activity
+deflog on
+logfile $HOME/.screenlogs/%2`_%H_%n_%t.log
+logtstamp on
+logtstamp after 300
